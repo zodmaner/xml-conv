@@ -44,7 +44,7 @@
       (pretty-write l-p-xexpr out))))
 
 ;;; Parses a prolog list back into a format that's suitable for
-;;; the prolog struct
+;;; creating a prolog struct
 (define (parse-prolog-list prolog-list)
   (map (λ (item)
          (cond
