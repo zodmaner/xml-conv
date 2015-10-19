@@ -20,20 +20,13 @@
 
 ;;; Converts the prolog of an XML document into a list
 (define (document-prolog->list document-struct)
-  (let loop ([d-prolog (prolog-misc (document-prolog document-struct))]
-             [prolog-list empty])
-    (if (empty? d-prolog)
-        (reverse prolog-list)
-        (let ([elt (car d-prolog)])
-          (cond
-           [(p-i? elt) (loop (cdr d-prolog) (cons (list
-                                                   (p-i-target-name elt)
-                                                   (p-i-instruction elt))
-                                                  prolog-list))]
-           [(comment? elt) (loop (cdr d-prolog) (cons (list
-                                                       'comment
-                                                       (comment-text elt))
-                                                      prolog-list))])))))
+  (map (λ (item)
+         (cond
+          [(p-i? item) (list (p-i-target-name item)
+                             (p-i-instruction item))]
+          [(comment? item) (list 'comment
+                                 (comment-text item))]))
+       (prolog-misc (document-prolog document-struct))))
 
 ;;; Converts an XML file into a list consists of two elements:
 ;;; a prolog list and an X-expression of the XML's content
