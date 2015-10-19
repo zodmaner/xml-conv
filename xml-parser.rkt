@@ -46,21 +46,14 @@
 ;;; Parses a prolog list back into a format that's suitable for
 ;;; the prolog struct
 (define (parse-prolog-list prolog-list)
-  (let loop ([p-l prolog-list]
-             [p-misc-list empty])
-    (if (empty? p-l)
-        (reverse p-misc-list)
-        (let ([elt (car p-l)])
-          (cond
-           [(equal? 'comment (first elt))
-            (loop (cdr p-l)
-                  (cons (make-comment (second elt))
-                        p-misc-list))]
-           [else (loop (cdr p-l)
-                       (cons (make-p-i #f #f
-                                       (first elt)
-                                       (second elt))
-                             p-misc-list))])))))
+  (map (λ (item)
+         (cond
+          [(equal? 'comment (first item))
+           (make-comment (second item))]
+          [else (make-p-i #f #f
+                          (first item)
+                          (second item))]))
+       prolog-list))
 
 ;;; Parses a list of a prolog and X-expression back into Racket's
 ;;; document struct
