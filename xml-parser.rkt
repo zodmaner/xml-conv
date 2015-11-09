@@ -2,24 +2,43 @@
 
 (require xml)
 
-;;; Reads comments in an XML file
+;; Reads comments in an XML file
 (read-comments #t)
 
-;;; Drops empty attributes
+;; Drops empty attributes
 (xexpr-drop-empty-attributes #t)
 
-;;; Reads an XML file and stores it as Racket's document struct
-(define (parse-xml-file xml-file)
+;; Reads an XML file and stores it as Racket's document struct
+(define (xml-file->document-struct xml-file)
   (call-with-input-file xml-file
     (λ (in)
       (read-xml in))))
 
-;;; Converts the content of an XML document into an X-expression
-(define (document-content->xexpr document-struct)
-  (remove "\n\n" (xml->xexpr (document-element document-struct))))
+;; Recursively removes newline and other control characters from
+;; strings in the x-expr
+(define (remove-noise-in-list x-expr)
+  (let loop ([new-x-expr empty]
+             [x-expr x-expr])
+    (if (null? x-expr)
+        (reverse new-x-expr)
+        (let ([elt (car x-expr)])
+          (cond
+           [(string? elt)
+            (if (not (string=? "" (string-normalize-spaces elt)))
+                (loop (cons elt new-x-expr) (cdr x-expr))
+                (loop new-x-expr (cdr x-expr)))]
+           [(list? elt)
+            (loop (cons (remove-noise-in-list elt) new-x-expr)
+                  (cdr x-expr))]
+           [else
+            (loop (cons elt new-x-expr) (cdr x-expr))])))))
 
-;;; Converts the prolog of an XML document into a list
-(define (document-prolog->list document-struct)
+;; Converts the content of an XML document into an X-expression
+(define (document-content->x-expr document-struct)
+  (remove-noise-in-list (xml->xexpr (document-element document-struct))))
+
+;; Converts the prolog of an XML document into a list
+(define (document-prolog->prolog-list document-struct)
   (map (λ (item)
          (cond
           [(p-i? item) (list (p-i-target-name item)
@@ -28,23 +47,31 @@
                                  (comment-text item))]))
        (prolog-misc (document-prolog document-struct))))
 
-;;; Converts an XML file into a list consists of two elements:
-;;; a prolog list and an X-expression of the XML's content
-(define (xml->l-p-xexpr xml-file)
-  (define document-struct (parse-xml-file xml-file))
+;; Converts an XML file into a list consists of two elements:
+;; a prolog list and an X-expression of the XML's content
+(define (xml-file->x-expr/prolog xml-file)
+  (define document-struct (xml-file->document-struct xml-file))
   (list
-   (document-prolog->list document-struct)
-   (document-content->xexpr document-struct)))
+   (document-prolog->prolog-list document-struct)
+   (document-content->x-expr document-struct)))
 
-;;; (Pretty) writes the list of a prolog and the content's X-expression
-;;; representation to a file
-(define (write-l-p-xexpr l-p-xexpr file-path)
-  (call-with-output-file file-path
+;; (Pretty) writes the list of a prolog and the content's X-expression
+;; representation to a file
+(define (x-expr/prolog->x-expr/prolog-file x-expr/prolog
+                                           x-expr/prolog-file)
+  (call-with-output-file x-expr/prolog-file
     (λ (out)
-      (pretty-write l-p-xexpr out))))
+      (pretty-write x-expr/prolog out))))
 
-;;; Parses a prolog list back into a format that's suitable for
-;;; creating a prolog struct
+;; Reads (and parses) an XML file and create a new file containing
+;; a prolog and X-expression from it
+(define (xml-file->x-expr/prolog-file xml-file x-expr/prolog-file)
+  (x-expr/prolog->x-expr/prolog-file (xml-file->x-expr/prolog
+                                      xml-file)
+                                     x-expr/prolog-file))
+
+;; Parses a prolog list back into a format that's suitable for
+;; creating a prolog struct
 (define (parse-prolog-list prolog-list)
   (map (λ (item)
          (cond
@@ -55,20 +82,22 @@
                           (second item))]))
        prolog-list))
 
-;;; Parses a list of a prolog and X-expression back into Racket's
-;;; document struct
-(define (parse-l-p-xexpr l-p-xexpr-file)
-  (call-with-input-file l-p-xexpr-file
+;; Parses a  file containing a list of a prolog and X-expression back
+;; into Racket's document struct
+(define (x-expr/prolog-file->document-struct x-expr/prolog-file)
+  (call-with-input-file x-expr/prolog-file
     (λ (in)
-      (let ([l-p-xexpr (read in)])
+      (let ([x-expr/prolog (read in)])
         (make-document (make-prolog
-                        (parse-prolog-list (first l-p-xexpr)) #f '())
-                       (xexpr->xml (second l-p-xexpr))
+                        (parse-prolog-list (first x-expr/prolog)) #f '())
+                       (xexpr->xml (second x-expr/prolog))
                        empty)))))
 
-;;; Generates a new XML file from a list of prolog and X-expression
-(define (generate-xml l-p-xexpr-file xml-file)
+;; Reads (and parses) a file containing a prolog and X-expression and
+;; creates a new XML file from it
+(define (x-expr/prolog-file->xml-file x-expr/prolog-file xml-file)
   (call-with-output-file xml-file
     (λ (out)
-      (display-xml (parse-l-p-xexpr l-p-xexpr-file) out))))
-
+      (display-xml (x-expr/prolog-file->document-struct
+                    x-expr/prolog-file)
+                   out))))
